@@ -2,7 +2,8 @@ import os
 import cv2
 import numpy as np
 
-dataset_dir = '/Users/ruyutong/Visual-Audio-Alignment/data_samples'
+dataset_dir = 'D:\lenovo\mia_final_project\Visual-Audio-Alignment\data_samples'
+#'/Users/ruyutong/Visual-Audio-Alignment/data_samples' 
 audio_feature_dir = os.path.join(dataset_dir, 'audio_features')
 visual_feature_dir = os.path.join(dataset_dir, 'visual_features')
 output_dir = dataset_dir  # or use a separate folder if preferred
