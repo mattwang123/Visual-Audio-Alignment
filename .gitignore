@@ -4,3 +4,5 @@
 /.venv
 /data_samples/generated_samples
 data_samples/.DS_Store
+.DS_Store
+/data_samples/generated_samples_combined
