@@ -1,3 +1,6 @@
 /data_samples/trimmed_clips
 /original_videos
 *.pyc
+/.venv
+/data_samples/generated_samples
+data_samples/.DS_Store

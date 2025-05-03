@@ -2,147 +2,165 @@ import os
 import random
 import pandas as pd
 import subprocess
-import numpy as np
-from pydub import AudioSegment
-from pydub.generators import WhiteNoise
-from pydub.effects import speedup
 
-def generate_bad_samples(df: pd.DataFrame, video_dir: str, output_dir: str, output_csv: str) -> None:
-    """
-    Generate bad samples by cutting good samples into pieces and applying misalignments.
-    
-    Args:
-        df: DataFrame with columns ['VideoID', 'StartTime', 'EndTime', 'Category'].
-        video_dir: Directory containing original videos.
-        output_dir: Directory to save generated samples.
-        output_csv: Path to save the CSV with video info and labels.
-    """
+def generate_samples(df: pd.DataFrame, video_dir: str, output_dir: str, output_csv: str, seed: int = 42) -> None:
     os.makedirs(output_dir, exist_ok=True)
+    random.seed(seed)
     data = []
 
     for _, row in df.iterrows():
         video_id = row['VideoID']
-        start_time = row['StartTime']
-        end_time = row['EndTime']
+        start_time = float(row['StartTime'])
+        end_time = float(row['EndTime'])
         duration = end_time - start_time
-        original_path = os.path.join(video_dir, f"{video_id}_{start_time}_{end_time}.mp4")
+        original_path = os.path.join(video_dir, f"{video_id}.mp4")
 
-        # Skip if original video doesn't exist
         if not os.path.exists(original_path):
+            print(f"✗ Missing file: {original_path}")
             continue
 
-        # Randomly cut into >=1 pieces, each >1s
+        min_seg_len = 1.0
         cuts = []
-        if duration > 2:  # Only cut if duration allows for >=2 pieces
-            num_cuts = random.randint(1, min(3, int(duration) - 1))  # 1-3 cuts
-            cut_points = sorted([start_time] + 
-                               [round(start_time + random.uniform(1, duration - 1), 2) 
-                                for _ in range(num_cuts)] + 
-                               [end_time])
-            cuts = [(cut_points[i], cut_points[i+1]) for i in range(len(cut_points)-1)]
+
+        if duration >= 2 * min_seg_len:
+            max_cuts = int(duration // min_seg_len) - 1
+            num_cuts = random.randint(1, min(3, max_cuts))
+            cut_points = [start_time]
+
+            for _ in range(num_cuts):
+                last = cut_points[-1]
+                remaining_needed = (num_cuts - len(cut_points) + 1) * min_seg_len
+                max_cut = end_time - remaining_needed
+                if last + min_seg_len > max_cut:
+                    break
+                next_cut = round(random.uniform(last + min_seg_len, max_cut), 2)
+                cut_points.append(next_cut)
+
+            cut_points.append(end_time)
+            cuts = [(round(cut_points[i], 2), round(cut_points[i + 1], 2))
+                    for i in range(len(cut_points) - 1)]
         else:
-            cuts = [(start_time, end_time)]
+            cuts = [(round(start_time, 2), round(end_time, 2))]
 
         for cut_start, cut_end in cuts:
-            cut_duration = cut_end - cut_start
-            is_good = random.choice([True, False])  # Randomly decide if this piece is good or bad
+            cut_duration = round(cut_end - cut_start, 2)
+            if cut_duration < min_seg_len:
+                print(f"✗ Skipped (too short < 1s): {video_id} from {cut_start}s to {cut_end}s ({cut_duration:.2f}s)")
+                continue
+
+            is_good = random.choice([True, False])
+            cut_start_fmt = f"{cut_start:.2f}"
+            cut_end_fmt = f"{cut_end:.2f}"
 
             if is_good:
-                # Save as good sample
-                output_path = os.path.join(output_dir, f"{video_id}_{cut_start}_{cut_end}_good.mp4")
+                output_path = os.path.join(output_dir, f"{video_id}_{cut_start_fmt}_{cut_end_fmt}_good.mp4")
                 cmd = [
                     "ffmpeg", "-loglevel", "error",
                     "-i", original_path,
-                    "-ss", str(cut_start - start_time),  # Adjust for the cut
+                    "-ss", str(cut_start),
                     "-t", str(cut_duration),
                     "-c:v", "libx264", "-c:a", "aac", "-y",
                     output_path
                 ]
-                label = "Positive"
-                misalignment_type = "None"
+                metadata = {
+                    "Label": "Positive",
+                    "MisalignmentType": "None"
+                }
             else:
-                # Generate bad sample
-                misalignment_type = random.choice(["time_shift", "noise", "mute", "distort"])
-                output_path = os.path.join(output_dir, f"{video_id}_{cut_start}_{cut_end}_bad_{misalignment_type}.mp4")
+                misalignment = random.choice(["time_shift", "noise", "mute", "distort"])
+                if misalignment == "time_shift" and cut_start == 0.0:
+                    misalignment = random.choice(["noise", "mute", "distort"])
 
-                if misalignment_type == "time_shift":
-                    # Time-shift audio by ±0.5s
-                    shift = random.uniform(-0.5, 0.5)
+                # Check and possibly fallback if audio is missing or segment is too short for shift
+                if misalignment == "time_shift":
+                    probe_cmd = [
+                        "ffprobe", "-v", "error", "-select_streams", "a",
+                        "-show_entries", "stream=duration", "-of", "default=noprint_wrappers=1:nokey=1",
+                        original_path
+                    ]
+                    result = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    try:
+                        audio_duration = float(result.stdout.decode().strip())
+                    except:
+                        audio_duration = 0.0
+
+                    max_safe_shift = int(cut_duration * 1000 * 0.8)
+                    if audio_duration < cut_duration + 0.5 or max_safe_shift < 100:
+                        print(f"✗ Skipped time_shift: unsafe audio or segment too short ({cut_duration:.2f}s)")
+                        misalignment = random.choice(["noise", "mute", "distort"])
+
+                output_path = os.path.join(output_dir,
+                                           f"{video_id}_{cut_start_fmt}_{cut_end_fmt}_bad_{misalignment}.mp4")
+
+                # Final cmd setup after confirming actual misalignment
+                if misalignment == "time_shift":
+                    shift_ms = random.randint(100, max(100, int(cut_duration * 1000 * 0.8)))
                     cmd = [
                         "ffmpeg", "-loglevel", "error",
                         "-i", original_path,
-                        "-ss", str(cut_start - start_time),
+                        "-ss", str(cut_start),
                         "-t", str(cut_duration),
-                        "-c:v", "libx264", "-c:a", "aac",
-                        "-filter_complex", f"adelay={int(shift * 1000)}|{int(shift * 1000)}",
+                        "-filter_complex", f"adelay={shift_ms}|{shift_ms}",
+                        "-c:v", "copy",
                         "-y", output_path
                     ]
-                elif misalignment_type == "noise":
-                    # Replace audio with white noise
-                    temp_audio = os.path.join(output_dir, "temp_audio.wav")
-                    # Extract original audio duration
-                    cmd_extract = [
-                        "ffmpeg", "-loglevel", "error",
-                        "-i", original_path,
-                        "-ss", str(cut_start - start_time),
-                        "-t", str(cut_duration),
-                        "-vn", "-acodec", "pcm_s16le", "-y", temp_audio
-                    ]
-                    subprocess.run(cmd_extract, check=True)
-                    # Generate noise
-                    audio = AudioSegment.from_wav(temp_audio)
-                    noise = WhiteNoise().to_audio_segment(duration=len(audio))
-                    noise.export(temp_audio, format="wav")
-                    # Merge noise with video
+
+                elif misalignment == "noise":
                     cmd = [
                         "ffmpeg", "-loglevel", "error",
                         "-i", original_path,
-                        "-ss", str(cut_start - start_time),
+                        "-ss", str(cut_start),
                         "-t", str(cut_duration),
-                        "-i", temp_audio,
-                        "-c:v", "libx264", "-map", "0:v:0", "-map", "1:a:0",
+                        "-f", "lavfi", "-i", "anoisesrc=color=white",
+                        "-c:v", "libx264", "-map", "0:v", "-map", "1:a",
+                        "-shortest", "-y", output_path
+                    ]
+
+                elif misalignment == "mute":
+                    cmd = [
+                        "ffmpeg", "-loglevel", "error",
+                        "-i", original_path,
+                        "-ss", str(cut_start),
+                        "-t", str(cut_duration),
+                        "-an",
+                        "-c:v", "copy",
                         "-y", output_path
                     ]
-                    os.remove(temp_audio)
-                elif misalignment_type == "mute":
-                    # Remove audio
+
+                elif misalignment == "distort":
+                    speed_factor = round(random.uniform(0.85, 1.15), 2)
                     cmd = [
                         "ffmpeg", "-loglevel", "error",
                         "-i", original_path,
-                        "-ss", str(cut_start - start_time),
+                        "-ss", str(cut_start),
                         "-t", str(cut_duration),
-                        "-c:v", "libx264", "-an", "-y",
-                        output_path
+                        "-filter_complex", "setpts='0.75*PTS+sin(N*0.05)*0.05/TB'",
+                        "-c:a", "copy",
+                        "-y", output_path
                     ]
-                elif misalignment_type == "distort":
-                    # Distort video (blur + frame drops)
-                    cmd = [
-                        "ffmpeg", "-loglevel", "error",
-                        "-i", original_path,
-                        "-ss", str(cut_start - start_time),
-                        "-t", str(cut_duration),
-                        "-c:v", "libx264", "-vf", "boxblur=2:1",
-                        "-r", "10",  # Reduce frame rate to 10fps
-                        "-c:a", "aac", "-y",
-                        output_path
-                    ]
-                label = "Negative"
+
+                metadata = {
+                    "Label": "Negative",
+                    "MisalignmentType": misalignment
+                }
 
             try:
-                subprocess.run(cmd, check=True, stderr=subprocess.PIPE)
+                subprocess.run(cmd, check=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
                 data.append({
                     "VideoID": video_id,
                     "StartTime": cut_start,
                     "EndTime": cut_end,
-                    "Duration": cut_duration,
-                    "Label": label,
-                    "MisalignmentType": misalignment_type,
+                    **metadata,
                     "Category": row['Category'],
                     "FilePath": output_path
                 })
+                print(f"✓ Generated: {output_path}")
             except subprocess.CalledProcessError as e:
-                print(f"Failed to generate sample: {e.stderr.decode().strip()}")
+                print("✗ ffmpeg FAILED")
+                print(f"  VideoID: {video_id}")
+                print(f"  Segment: {cut_start}s to {cut_end}s (Duration: {cut_duration:.2f}s)")
+                print(f"  Cmd: {' '.join(cmd)}")
+                print(f"  Error: {e.stderr.decode(errors='ignore').strip()}")
 
-    # Save metadata to CSV
     pd.DataFrame(data).to_csv(output_csv, index=False)
-    print(f"Generated samples saved to {output_dir}. Metadata saved to {output_csv}.")
+    print(f"\n✓ Saved metadata to {output_csv}")
