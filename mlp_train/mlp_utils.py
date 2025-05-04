@@ -12,23 +12,13 @@ from datetime import datetime
 # 1. Flexible Dataset Class
 class AVDataset(Dataset):
     def __init__(self, features, labels, transform=None):
-        """
-        Args:
-            features: Dictionary or numpy array containing:
-                - 'visual': [num_samples, visual_feat_dim]
-                - 'audio': [num_samples, audio_feat_dim]
-            labels: numpy array [num_samples]
-            transform: Optional transforms
-        """
         if isinstance(features, dict):
-            # Assume separate audio/visual features
             self.visual_feats = torch.FloatTensor(features['visual'])
             self.audio_feats = torch.FloatTensor(features['audio'])
             self.feats = torch.cat([self.visual_feats, self.audio_feats], dim=1)
         else:
-            # Assume already concatenated features
             self.feats = torch.FloatTensor(features)
-            
+
         self.labels = torch.FloatTensor(labels)
         self.transform = transform
 
@@ -40,10 +30,10 @@ class AVDataset(Dataset):
             'features': self.feats[idx],
             'label': self.labels[idx]
         }
-        
+
         if self.transform:
             sample = self.transform(sample)
-            
+
         return sample
 
 # 2. MLP Model Definition
@@ -52,18 +42,17 @@ class SyncDetectorMLP(nn.Module):
         super().__init__()
         layers = []
         prev_dim = input_dim
-        
-        for i, h_dim in enumerate(hidden_dims):
+
+        for h_dim in hidden_dims:
             layers.append(nn.Linear(prev_dim, h_dim))
             layers.append(nn.ReLU())
             layers.append(nn.Dropout(dropout))
             prev_dim = h_dim
-            
-        layers.append(nn.Linear(prev_dim, 1))
-        layers.append(nn.Sigmoid())
-        
+
+        layers.append(nn.Linear(prev_dim, 1))  # No Sigmoid here!
+
         self.net = nn.Sequential(*layers)
-    
+
     def forward(self, x):
         return self.net(x).squeeze(1)
 
@@ -71,66 +60,55 @@ class SyncDetectorMLP(nn.Module):
 def train_model(model, dataloaders, criterion, optimizer, device, num_epochs=25):
     metrics = {'train': {'loss': [], 'acc': [], 'f1': []},
                'val': {'loss': [], 'acc': [], 'f1': []}}
-    
+
     best_f1 = 0.0
-    
+
     for epoch in range(num_epochs):
         print(f'Epoch {epoch+1}/{num_epochs}')
         print('-' * 10)
-        
+
         for phase in ['train', 'val']:
-            if phase == 'train':
-                model.train()
-            else:
-                model.eval()
-                
+            model.train() if phase == 'train' else model.eval()
             running_loss = 0.0
             all_preds = []
             all_labels = []
-            
+
             for batch in dataloaders[phase]:
                 features = batch['features'].to(device)
                 labels = batch['label'].to(device)
-                
+
                 optimizer.zero_grad()
-                
                 with torch.set_grad_enabled(phase == 'train'):
-                    outputs = model(features)
-                    loss = criterion(outputs, labels)
-                    
+                    logits = model(features)
+                    loss = criterion(logits, labels)
                     if phase == 'train':
                         loss.backward()
                         optimizer.step()
-                
-                preds = (outputs > 0.5).float()
+
+                probs = torch.sigmoid(logits)
+                preds = (probs > 0.5).float()
                 running_loss += loss.item() * features.size(0)
                 all_preds.extend(preds.cpu().numpy())
                 all_labels.extend(labels.cpu().numpy())
-            
+
             epoch_loss = running_loss / len(dataloaders[phase].dataset)
             epoch_acc = accuracy_score(all_labels, all_preds)
             epoch_f1 = f1_score(all_labels, all_preds, average='binary')
-            
+
             metrics[phase]['loss'].append(epoch_loss)
             metrics[phase]['acc'].append(epoch_acc)
             metrics[phase]['f1'].append(epoch_f1)
-            
+
             print(f'{phase.capitalize()} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f} F1: {epoch_f1:.4f}')
-            
-            # Save best model
+
             if phase == 'val' and epoch_f1 > best_f1:
                 best_f1 = epoch_f1
                 torch.save(model.state_dict(), 'best_model.pth')
-    
+
     return metrics, model
 
 def save_model_and_metrics(model, optimizer, metrics, config, output_dir, timestamp):
     os.makedirs(output_dir, exist_ok=True)
-
-    # Save best model (already done during training)
-    print(f"Best model saved to: {os.path.join(output_dir, 'best_model.pth')}")
-
-    # Save full training state
     torch.save({
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
@@ -139,17 +117,14 @@ def save_model_and_metrics(model, optimizer, metrics, config, output_dir, timest
         'config': config
     }, os.path.join(output_dir, 'full_training_state.pth'))
 
-    # Save metrics and config as JSON
     with open(os.path.join(output_dir, 'metrics.json'), 'w') as f:
         json.dump(metrics, f, indent=4)
     with open(os.path.join(output_dir, 'config.json'), 'w') as f:
         json.dump(config, f, indent=4)
 
-    # Save model architecture
     with open(os.path.join(output_dir, 'model_architecture.txt'), 'w') as f:
         f.write(str(model))
 
-    # Save training log
     log_content = f"""
     Training Summary - {timestamp}
     --------------------------------
@@ -165,13 +140,10 @@ def save_model_and_metrics(model, optimizer, metrics, config, output_dir, timest
     """
     with open(os.path.join(output_dir, 'training_log.txt'), 'w') as f:
         f.write(log_content)
-
     print(f"\nAll training artifacts saved to: {output_dir}")
-
 
 def plot_training_metrics(metrics, output_path):
     plt.figure(figsize=(12, 4))
-    
     plt.subplot(1, 2, 1)
     plt.plot(metrics['train']['loss'], label='Train')
     plt.plot(metrics['val']['loss'], label='Validation')
