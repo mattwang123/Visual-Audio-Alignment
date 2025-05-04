@@ -1,2 +1,0 @@
-data_samples/dataset[[:space:]]info/trimmed_clips.zip.part_* filter=lfs diff=lfs merge=lfs -text
-data_samples/generated_samples.zip.part_* filter=lfs diff=lfs merge=lfs -text
