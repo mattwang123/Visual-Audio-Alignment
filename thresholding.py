@@ -2,11 +2,11 @@ import os
 import cv2
 import numpy as np
 
-dataset_dir = 'D:\lenovo\mia_final_project\Visual-Audio-Alignment\data_samples'
-#'/Users/ruyutong/Visual-Audio-Alignment/data_samples' 
-audio_feature_dir = os.path.join(dataset_dir, 'audio_features')
-visual_feature_dir = os.path.join(dataset_dir, 'visual_features')
-output_dir = dataset_dir  # or use a separate folder if preferred
+dataset_dir = '/Users/ruyutong/Desktop/generated_samples'
+feature_dir = '/Users/ruyutong/Desktop/generated_features'
+audio_feature_dir = os.path.join(feature_dir, 'audio_features')
+visual_feature_dir = os.path.join(feature_dir, 'visual_features')
+output_dir = '/Users/rutyutong/Desktop/thresholded_samples'
 
 def threshold_anomaly_detection(audio_feature, visual_feature):
     discrepancy = np.abs(audio_feature - visual_feature)
