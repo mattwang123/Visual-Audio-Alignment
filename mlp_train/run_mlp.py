@@ -66,14 +66,14 @@ dataloaders = {
 # === Model Config ===
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 input_dim = train_dataset[0]['features'].shape[0]
-model = SyncDetectorMLP(input_dim=input_dim, hidden_dims=[256, 128], dropout=0.3).to(device)
+model = SyncDetectorMLP(input_dim=input_dim, hidden_dims=[512, 256, 128, 64], dropout=0.3).to(device)
 
 criterion = torch.nn.BCEWithLogitsLoss()
 
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-2, weight_decay=1e-5)
 
 # === Train ===
-metrics, model = train_model(model, dataloaders, criterion, optimizer, device, num_epochs=50)
+metrics, model = train_model(model, dataloaders, criterion, optimizer, device, num_epochs=20)
 
 # === Save Results ===
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -83,9 +83,9 @@ os.makedirs(output_dir, exist_ok=True)
 plot_training_metrics(metrics, os.path.join(output_dir, 'training_metrics.png'))
 save_model_and_metrics(model, optimizer, metrics, {
     'batch_size': 64,
-    'hidden_dims': [256, 128],
+    'hidden_dims': [512, 256, 128, 64],
     'dropout': 0.3,
-    'lr': 1e-3,
-    'epochs': 50,
+    'lr': 1e-2,
+    'epochs': 20,
     'weight_decay': 1e-5
 }, output_dir, timestamp)
