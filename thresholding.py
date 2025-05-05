@@ -294,8 +294,8 @@ def main():
         print("Starting audio-visual anomaly detection...")
         
         # Directories containing feature files
-        audio_features_dir = '/Users/ruyutong/Desktop/audio_features'  # Directory path for audio features
-        visual_features_dir = '/Users/ruyutong/Desktop/visual_features'  # Directory path for visual features
+        visual_features_dir = r"D:\lenovo\mia_final_project\Visual-Audio-Alignment\visual_features"
+        audio_features_dir = r"D:\lenovo\mia_final_project\Visual-Audio-Alignment\audio_features" 
         
         # Load features from directories
         print("Loading feature files...")
