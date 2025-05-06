@@ -4,6 +4,30 @@ import pandas as pd
 import subprocess
 
 def generate_samples(df: pd.DataFrame, video_dir: str, output_dir: str, output_csv: str, seed: int = 42) -> None:
+    """
+    Generate synthetic samples with various audio-visual misalignments from the original videos.
+    
+    This function processes each video segment and creates both positive (aligned) and negative (misaligned) samples.
+    For each segment, it:
+    1. Randomly decides whether to create a positive or negative sample
+    2. For positive samples: extracts the segment as-is
+    3. For negative samples: applies one of four types of misalignments:
+       - Time shift: Delays audio relative to video
+       - Noise: Adds white noise to audio
+       - Mute: Removes audio track
+       - Distort: Applies waveform distortion to audio
+    
+    Args:
+        df (pd.DataFrame): DataFrame containing video annotations with columns:
+            - VideoID: Unique identifier for each video
+            - StartTime: Start time of the segment in seconds
+            - EndTime: End time of the segment in seconds
+            - Category: Category of the audio-visual event
+        video_dir (str): Directory containing the original video files
+        output_dir (str): Directory to save the generated samples
+        output_csv (str): Path to save the metadata CSV file
+        seed (int, optional): Random seed for reproducibility. Defaults to 42.
+    """
     os.makedirs(output_dir, exist_ok=True)
     random.seed(seed)
     data = []
@@ -19,14 +43,17 @@ def generate_samples(df: pd.DataFrame, video_dir: str, output_dir: str, output_c
             print(f"✗ Missing file: {original_path}")
             continue
 
+        # Minimum segment length in seconds
         min_seg_len = 1.0
         cuts = []
 
+        # If segment is long enough, split it into multiple sub-segments
         if duration >= 2 * min_seg_len:
             max_cuts = int(duration // min_seg_len) - 1
             num_cuts = random.randint(1, min(3, max_cuts))
             cut_points = [start_time]
 
+            # Generate random cut points ensuring minimum segment length
             for _ in range(num_cuts):
                 last = cut_points[-1]
                 remaining_needed = (num_cuts - len(cut_points) + 1) * min_seg_len
@@ -42,17 +69,20 @@ def generate_samples(df: pd.DataFrame, video_dir: str, output_dir: str, output_c
         else:
             cuts = [(round(start_time, 2), round(end_time, 2))]
 
+        # Process each sub-segment
         for cut_start, cut_end in cuts:
             cut_duration = round(cut_end - cut_start, 2)
             if cut_duration < min_seg_len:
                 print(f"✗ Skipped (too short < 1s): {video_id} from {cut_start}s to {cut_end}s ({cut_duration:.2f}s)")
                 continue
 
+            # Randomly decide whether to create a positive or negative sample
             is_good = random.choice([True, False])
             cut_start_fmt = f"{cut_start:.2f}"
             cut_end_fmt = f"{cut_end:.2f}"
 
             if is_good:
+                # Generate positive sample (unaltered segment)
                 output_path = os.path.join(output_dir, f"{video_id}_{cut_start_fmt}_{cut_end_fmt}_good.mp4")
                 cmd = [
                     "ffmpeg", "-loglevel", "error",
@@ -67,11 +97,12 @@ def generate_samples(df: pd.DataFrame, video_dir: str, output_dir: str, output_c
                     "MisalignmentType": "None"
                 }
             else:
+                # Generate negative sample with random misalignment
                 misalignment = random.choice(["time_shift", "noise", "mute", "distort"])
                 if misalignment == "time_shift" and cut_start == 0.0:
                     misalignment = random.choice(["noise", "mute", "distort"])
 
-                # Check and possibly fallback if audio is missing or segment is too short for shift
+                # Check audio duration and segment length for time shift
                 if misalignment == "time_shift":
                     probe_cmd = [
                         "ffprobe", "-v", "error", "-select_streams", "a",
@@ -84,6 +115,7 @@ def generate_samples(df: pd.DataFrame, video_dir: str, output_dir: str, output_c
                     except:
                         audio_duration = 0.0
 
+                    # Ensure safe time shift (max 80% of segment duration)
                     max_safe_shift = int(cut_duration * 1000 * 0.8)
                     if audio_duration < cut_duration + 0.5 or max_safe_shift < 100:
                         print(f"✗ Skipped time_shift: unsafe audio or segment too short ({cut_duration:.2f}s)")
@@ -92,8 +124,9 @@ def generate_samples(df: pd.DataFrame, video_dir: str, output_dir: str, output_c
                 output_path = os.path.join(output_dir,
                                            f"{video_id}_{cut_start_fmt}_{cut_end_fmt}_bad_{misalignment}.mp4")
 
-                # Final cmd setup after confirming actual misalignment
+                # Apply selected misalignment
                 if misalignment == "time_shift":
+                    # Add random delay to audio (100ms to 80% of segment duration)
                     shift_ms = random.randint(100, max(100, int(cut_duration * 1000 * 0.8)))
                     cmd = [
                         "ffmpeg", "-loglevel", "error",
@@ -106,6 +139,7 @@ def generate_samples(df: pd.DataFrame, video_dir: str, output_dir: str, output_c
                     ]
 
                 elif misalignment == "noise":
+                    # Add white noise to audio track
                     cmd = [
                         "ffmpeg", "-loglevel", "error",
                         "-i", original_path,
@@ -117,6 +151,7 @@ def generate_samples(df: pd.DataFrame, video_dir: str, output_dir: str, output_c
                     ]
 
                 elif misalignment == "mute":
+                    # Remove audio track completely
                     cmd = [
                         "ffmpeg", "-loglevel", "error",
                         "-i", original_path,
@@ -128,7 +163,7 @@ def generate_samples(df: pd.DataFrame, video_dir: str, output_dir: str, output_c
                     ]
 
                 elif misalignment == "distort":
-                    speed_factor = round(random.uniform(0.85, 1.15), 2)
+                    # Apply waveform distortion to audio
                     cmd = [
                         "ffmpeg", "-loglevel", "error",
                         "-i", original_path,
@@ -144,6 +179,7 @@ def generate_samples(df: pd.DataFrame, video_dir: str, output_dir: str, output_c
                     "MisalignmentType": misalignment
                 }
 
+            # Process the video segment
             try:
                 subprocess.run(cmd, check=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
                 data.append({
@@ -162,5 +198,6 @@ def generate_samples(df: pd.DataFrame, video_dir: str, output_dir: str, output_c
                 print(f"  Cmd: {' '.join(cmd)}")
                 print(f"  Error: {e.stderr.decode(errors='ignore').strip()}")
 
+    # Save metadata to CSV
     pd.DataFrame(data).to_csv(output_csv, index=False)
     print(f"\n✓ Saved metadata to {output_csv}")

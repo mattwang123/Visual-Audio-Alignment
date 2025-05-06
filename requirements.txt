@@ -3,3 +3,6 @@ opencv-python
 librosa
 matplotlib
 tqdm
+pandas
+ipython
+ffmpeg-python
