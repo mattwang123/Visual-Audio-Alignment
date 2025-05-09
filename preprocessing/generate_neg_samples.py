@@ -47,25 +47,42 @@ def generate_samples(df: pd.DataFrame, video_dir: str, output_dir: str, output_c
         min_seg_len = 1.0
         cuts = []
 
-        # If segment is long enough, split it into multiple sub-segments
+        # # If segment is long enough, split it into multiple sub-segments
+        # if duration >= 2 * min_seg_len:
+        #     max_cuts = int(duration // min_seg_len) - 1
+        #     num_cuts = random.randint(1, min(3, max_cuts))
+        #     cut_points = [start_time]
+
+        #     # Generate random cut points ensuring minimum segment length
+        #     for _ in range(num_cuts):
+        #         last = cut_points[-1]
+        #         remaining_needed = (num_cuts - len(cut_points) + 1) * min_seg_len
+        #         max_cut = end_time - remaining_needed
+        #         if last + min_seg_len > max_cut:
+        #             break
+        #         next_cut = round(random.uniform(last + min_seg_len, max_cut), 2)
+        #         cut_points.append(next_cut)
+
+        #     cut_points.append(end_time)
+        #     cuts = [(round(cut_points[i], 2), round(cut_points[i + 1], 2))
+        #             for i in range(len(cut_points) - 1)]
+        # else:
+        #     cuts = [(round(start_time, 2), round(end_time, 2))]
+
         if duration >= 2 * min_seg_len:
-            max_cuts = int(duration // min_seg_len) - 1
-            num_cuts = random.randint(1, min(3, max_cuts))
-            cut_points = [start_time]
+            cuts = []
+            remaining = duration
+            current = start_time
 
-            # Generate random cut points ensuring minimum segment length
-            for _ in range(num_cuts):
-                last = cut_points[-1]
-                remaining_needed = (num_cuts - len(cut_points) + 1) * min_seg_len
-                max_cut = end_time - remaining_needed
-                if last + min_seg_len > max_cut:
+            while remaining >= min_seg_len:
+                # Sample duration between 2s and 6s or remaining
+                seg_len = round(random.uniform(2.0, min(6.0, remaining)), 2)
+                cut_end = current + seg_len
+                if cut_end > end_time:
                     break
-                next_cut = round(random.uniform(last + min_seg_len, max_cut), 2)
-                cut_points.append(next_cut)
-
-            cut_points.append(end_time)
-            cuts = [(round(cut_points[i], 2), round(cut_points[i + 1], 2))
-                    for i in range(len(cut_points) - 1)]
+                cuts.append((round(current, 2), round(cut_end, 2)))
+                current = cut_end
+                remaining = end_time - current
         else:
             cuts = [(round(start_time, 2), round(end_time, 2))]
 
