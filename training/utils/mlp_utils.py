@@ -10,33 +10,64 @@ import matplotlib.pyplot as plt
 from utils.evaluation_utils import evaluate_predictions, plot_confusion_matrix, plot_roc_curve
 
 # === Hyperparameter Macros ===
-HIDDEN_DIMS = [1024, 512, 128]
-DROPOUT = 0.4
-LR = 1e-4
-WEIGHT_DECAY = 1e-5
+HIDDEN_DIMS = [512, 256, 64]
+DROPOUT = 0.3
+LR = 1e-6
+WEIGHT_DECAY = 0
 NUM_EPOCHS = 50
-BATCH_SIZE = 64
-SCHEDULER_STEP = 10
-SCHEDULER_GAMMA = 0.5
+BATCH_SIZE = 128
+
+import torch
+import torch.nn as nn
+
+class Swish(nn.Module):
+    def forward(self, x):
+        return x * torch.sigmoid(x)
+
+class ResidualBlock(nn.Module):
+    def __init__(self, dim, dropout):
+        super().__init__()
+        self.block = nn.Sequential(
+            nn.Linear(dim, dim),
+            nn.BatchNorm1d(dim),
+            Swish(),
+            nn.Dropout(dropout),
+            nn.Linear(dim, dim),
+            nn.BatchNorm1d(dim)
+        )
+        self.activation = Swish()
+
+    def forward(self, x):
+        return self.activation(x + self.block(x))
 
 class SyncDetectorMLP(nn.Module):
     def __init__(self, input_dim, hidden_dims=HIDDEN_DIMS, dropout=DROPOUT):
         super().__init__()
         layers = []
         prev_dim = input_dim
-        for h_dim in hidden_dims:
+
+        # Input projection
+        layers.append(nn.Linear(prev_dim, hidden_dims[0]))
+        layers.append(nn.BatchNorm1d(hidden_dims[0]))
+        layers.append(Swish())
+        layers.append(nn.Dropout(dropout))
+        prev_dim = hidden_dims[0]
+
+        # Residual blocks for intermediate layers
+        for h_dim in hidden_dims[1:]:
             layers.append(nn.Linear(prev_dim, h_dim))
-            layers.append(nn.BatchNorm1d(h_dim))
-            layers.append(nn.ReLU())
-            layers.append(nn.Dropout(dropout))
+            layers.append(ResidualBlock(h_dim, dropout))
             prev_dim = h_dim
-        layers.append(nn.Linear(prev_dim, 1))
+
+        # Final layer
+        layers.append(nn.Linear(prev_dim, 1))  # Outputs logits for BCEWithLogitsLoss
+
         self.net = nn.Sequential(*layers)
 
     def forward(self, x):
         return self.net(x).squeeze(1)
 
-def train_model(model, dataloaders, criterion, optimizer, scheduler, device, num_epochs=NUM_EPOCHS):
+def train_model(model, dataloaders, criterion, optimizer, device, num_epochs=NUM_EPOCHS):
     metrics = {'train': {'loss': [], 'acc': [], 'f1': []},
                'val': {'loss': [], 'acc': [], 'f1': []}}
     best_f1 = 0.0
@@ -84,8 +115,6 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, device, num
                 best_preds = all_probs.copy()
                 best_labels = all_labels.copy()
 
-        scheduler.step()
-
     print("\nGenerating evaluation plots from best validation performance...")
     threshold = plot_roc_curve(best_labels, best_preds, out_path="mlp_roc_curve.png")
     best_metrics = evaluate_predictions(best_labels, best_preds, threshold=threshold)
@@ -123,7 +152,6 @@ def save_model_and_metrics(model, optimizer, metrics, config, output_dir, timest
 def plot_training_metrics(metrics, output_path):
     plt.figure(figsize=(18, 4))
 
-    # Plot Loss
     plt.subplot(1, 3, 1)
     plt.plot(metrics['train']['loss'], label='Train')
     plt.plot(metrics['val']['loss'], label='Val')
@@ -132,7 +160,6 @@ def plot_training_metrics(metrics, output_path):
     plt.ylabel('Loss')
     plt.legend()
 
-    # Plot Accuracy
     plt.subplot(1, 3, 2)
     plt.plot(metrics['train']['acc'], label='Train')
     plt.plot(metrics['val']['acc'], label='Val')
@@ -141,7 +168,6 @@ def plot_training_metrics(metrics, output_path):
     plt.ylabel('Accuracy')
     plt.legend()
 
-    # Plot F1 Score
     plt.subplot(1, 3, 3)
     plt.plot(metrics['train']['f1'], label='Train')
     plt.plot(metrics['val']['f1'], label='Val')
