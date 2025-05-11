@@ -1,0 +1,6 @@
+Thresholding Summary - 20250509_204228
+Selected Threshold: 0.284
+Accuracy: 0.6272
+Precision: 0.6442
+Recall: 0.9361
+F1 Score: 0.7631

@@ -1,0 +1,11 @@
+{
+    "accuracy": 0.6386554621848739,
+    "precision": 0.6525652565256526,
+    "recall": 0.9427828348504551,
+    "f1_score": 0.7712765957446809,
+    "true_positives": 725,
+    "false_positives": 386,
+    "true_negatives": 35,
+    "false_negatives": 44,
+    "threshold": 0.2804385197050547
+}
