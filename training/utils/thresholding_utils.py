@@ -2,6 +2,7 @@ import numpy as np
 import os
 import json
 from datetime import datetime
+from sklearn.metrics import roc_auc_score
 
 from utils.evaluation_utils import evaluate_predictions, plot_confusion_matrix, plot_roc_curve
 
@@ -56,21 +57,39 @@ def threshold_evaluation(train_scores, train_labels, test_scores, test_labels, c
     train_scores_clean = train_scores[valid_train]
     train_labels_clean = train_labels[valid_train]
 
+    # Automatically flip if needed
+    auc_original = roc_auc_score(train_labels_clean, train_scores_clean)
+    auc_flipped = roc_auc_score(train_labels_clean, -train_scores_clean)
+
+    if auc_flipped > auc_original:
+        print(f"🔄 Flipping scores (AUC improved from {auc_original:.3f} → {auc_flipped:.3f})")
+        train_scores_clean = -train_scores_clean
+        test_scores = -test_scores
+        flipped = True
+        auc_used = auc_flipped
+    else:
+        print(f"✅ Using original scores (AUC = {auc_original:.3f})")
+        flipped = False
+        auc_used = auc_original
+
+    # === Output directory
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = os.path.join("thresholding_output", f"run_{timestamp}")
     os.makedirs(output_dir, exist_ok=True)
 
+    # === ROC + threshold
     roc_path = os.path.join(output_dir, "roc_curve.png")
     threshold = plot_roc_curve(train_labels_clean, train_scores_clean, out_path=roc_path)
-    print(f"✅ Selected threshold: {threshold:.3f}")
+    print(f"🎯 Selected threshold: {threshold:.3f}")
 
+    # === Evaluation
     metrics = evaluate_predictions(test_labels, test_scores, threshold=threshold)
 
+    # === Confusion Matrix
     cm_path = os.path.join(output_dir, "confusion_matrix.png")
     plot_confusion_matrix(metrics, out_path=cm_path)
 
-    # Save metrics and config
-    # Convert all NumPy types in metrics to native Python types
+    # === Save metrics & config
     def to_serializable(d):
         return {k: (v.item() if isinstance(v, (np.generic, np.ndarray)) else v) for k, v in d.items()}
 
@@ -83,6 +102,8 @@ def threshold_evaluation(train_scores, train_labels, test_scores, test_labels, c
 
     log_summary = (
         f"Thresholding Summary - {timestamp}\n"
+        f"AUC Used: {auc_used:.3f}\n"
+        f"Flipped: {flipped}\n"
         f"Selected Threshold: {threshold:.3f}\n"
         f"Accuracy: {metrics['accuracy']:.4f}\n"
         f"Precision: {metrics['precision']:.4f}\n"

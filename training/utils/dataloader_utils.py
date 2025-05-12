@@ -36,7 +36,7 @@ def unified_split(npz_dir, test_size=0.3, seed=42):
     return train_files, test_files
 
 class PreprocessedAVDataset(Dataset):
-    def __init__(self, file_list):
+    def __init__(self, file_list, expected_dim=9229):
         self.data = []
         self.labels = []
 
@@ -46,20 +46,37 @@ class PreprocessedAVDataset(Dataset):
                 visual = arr['visual']
                 audio = arr['audio']
                 label = float(arr['label'])
+
                 if visual.ndim != 2 or audio.ndim != 2 or len(visual) == 0 or len(audio) == 0:
                     continue
+
                 min_len = min(len(visual), len(audio))
-                pooled = np.concatenate([visual[:min_len], audio[:min_len]], axis=1).mean(axis=0)
+                concat = np.concatenate([visual[:min_len], audio[:min_len]], axis=1)
+                pooled = np.mean(concat, axis=0)
+
+                if pooled.shape[0] != expected_dim:
+                    #print(f"Skipping {path}: Unexpected pooled feature dimension {pooled.shape[0]}")
+                    continue
+
+                if np.isnan(pooled).any() or np.isinf(pooled).any():
+                    #print(f"NaN/Inf detected in file {path}")
+                    continue
+
                 self.data.append(pooled)
                 self.labels.append(label)
+
             except Exception as e:
                 print(f"Skipping {path}: {e}")
 
-        self.data = torch.tensor(self.data, dtype=torch.float32)
-        self.labels = torch.tensor(self.labels, dtype=torch.float32)
+        # Efficient conversion
+        self.data = torch.tensor(np.array(self.data), dtype=torch.float32)
+        self.labels = torch.tensor(np.array(self.labels), dtype=torch.float32)
 
     def __len__(self):
         return len(self.labels)
 
     def __getitem__(self, idx):
-        return {'features': self.data[idx], 'label': self.labels[idx]}
+        return {
+            'features': self.data[idx],
+            'label': self.labels[idx]
+        }

@@ -7,11 +7,11 @@ from utils.thresholding_utils import compute_alignment_score, threshold_evaluati
 from utils.dataloader_utils import unified_split, load_combined_npz_features
 
 # === Configuration ===
-npz_dir = r"D:\lenovo\mia_final_project\preprocessed_output2"
+npz_dir = r"D:\lenovo\mia_final_project\preprocessed_output"
 print("🚀 Running threshold-based alignment model")
 
 # === Unified Train/Test Split ===
-train_files, test_files = unified_split(npz_dir, test_size=0.3, seed=42)
+train_files, test_files = unified_split(npz_dir, test_size=0.1)
 
 # === Load and Organize Features ===
 all_features = load_combined_npz_features(npz_dir)

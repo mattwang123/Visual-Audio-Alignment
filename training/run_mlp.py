@@ -5,12 +5,12 @@ from datetime import datetime
 from torch.utils.data import DataLoader
 from utils.mlp_utils import (
     SyncDetectorMLP, train_model, plot_training_metrics, save_model_and_metrics,
-    HIDDEN_DIMS, DROPOUT, LR, WEIGHT_DECAY, NUM_EPOCHS, BATCH_SIZE, SCHEDULER_STEP, SCHEDULER_GAMMA
+    HIDDEN_DIMS, DROPOUT, LR, WEIGHT_DECAY, NUM_EPOCHS, BATCH_SIZE
 )
 from utils.dataloader_utils import unified_split, PreprocessedAVDataset
 
 # === Path to .npz files ===
-npz_dir = r"D:\lenovo\mia_final_project\preprocessed_output2"
+npz_dir = r"D:\lenovo\mia_final_project\preprocessed_output"
 train_files, val_files = unified_split(npz_dir, test_size=0.3, seed=42)
 
 # === Load datasets ===
@@ -42,10 +42,9 @@ model = SyncDetectorMLP(input_dim=input_dim, hidden_dims=HIDDEN_DIMS, dropout=DR
 
 criterion = torch.nn.BCEWithLogitsLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=SCHEDULER_STEP, gamma=SCHEDULER_GAMMA)
 
 # === Train ===
-metrics, model = train_model(model, dataloaders, criterion, optimizer, scheduler, device, num_epochs=NUM_EPOCHS)
+metrics, model = train_model(model, dataloaders, criterion, optimizer, device, num_epochs=NUM_EPOCHS)
 
 # === Save Results ===
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -60,7 +59,5 @@ save_model_and_metrics(model, optimizer, metrics, {
     'dropout': DROPOUT,
     'lr': LR,
     'epochs': NUM_EPOCHS,
-    'weight_decay': WEIGHT_DECAY,
-    'scheduler_step': SCHEDULER_STEP,
-    'scheduler_gamma': SCHEDULER_GAMMA
+    'weight_decay': WEIGHT_DECAY
 }, output_dir, timestamp)

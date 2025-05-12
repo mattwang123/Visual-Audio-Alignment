@@ -1,0 +1,12 @@
+{
+    "batch_size": 128,
+    "hidden_dims": [
+        512,
+        256,
+        64
+    ],
+    "dropout": 0.3,
+    "lr": 5e-07,
+    "epochs": 50,
+    "weight_decay": 0
+}

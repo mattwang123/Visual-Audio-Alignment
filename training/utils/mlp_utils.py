@@ -7,14 +7,12 @@ import os
 import json
 import matplotlib.pyplot as plt
 
-from utils.evaluation_utils import evaluate_predictions, plot_confusion_matrix, plot_roc_curve
-
 # === Hyperparameter Macros ===
-HIDDEN_DIMS = [512, 256, 64]
+HIDDEN_DIMS = [512, 128, 64]
 DROPOUT = 0.3
-LR = 1e-6
+LR = 8e-7
 WEIGHT_DECAY = 0
-NUM_EPOCHS = 50
+NUM_EPOCHS = 100
 BATCH_SIZE = 128
 
 import torch
@@ -112,13 +110,6 @@ def train_model(model, dataloaders, criterion, optimizer, device, num_epochs=NUM
             if phase == 'val' and epoch_f1 > best_f1:
                 best_f1 = epoch_f1
                 torch.save(model.state_dict(), 'best_model.pth')
-                best_preds = all_probs.copy()
-                best_labels = all_labels.copy()
-
-    print("\nGenerating evaluation plots from best validation performance...")
-    threshold = plot_roc_curve(best_labels, best_preds, out_path="mlp_roc_curve.png")
-    best_metrics = evaluate_predictions(best_labels, best_preds, threshold=threshold)
-    plot_confusion_matrix(best_metrics, out_path="mlp_confusion_matrix.png")
 
     return metrics, model
 
@@ -149,32 +140,63 @@ def save_model_and_metrics(model, optimizer, metrics, config, output_dir, timest
         f.write(summary)
     print(f"\nAll training artifacts saved to: {output_dir}")
 
+# def plot_training_metrics(metrics, output_path):
+#     plt.figure(figsize=(18, 4))
+
+#     plt.subplot(1, 3, 1)
+#     plt.plot(metrics['train']['loss'], label='Train')
+#     plt.plot(metrics['val']['loss'], label='Val')
+#     plt.title('Loss')
+#     plt.xlabel('Epoch')
+#     plt.ylabel('Loss')
+#     plt.legend()
+
+#     plt.subplot(1, 3, 2)
+#     plt.plot(metrics['train']['acc'], label='Train')
+#     plt.plot(metrics['val']['acc'], label='Val')
+#     plt.title('Accuracy')
+#     plt.xlabel('Epoch')
+#     plt.ylabel('Accuracy')
+#     plt.legend()
+
+#     plt.subplot(1, 3, 3)
+#     plt.plot(metrics['train']['f1'], label='Train')
+#     plt.plot(metrics['val']['f1'], label='Val')
+#     plt.title('F1 Score')
+#     plt.xlabel('Epoch')
+#     plt.ylabel('F1')
+#     plt.legend()
+
+#     plt.tight_layout()
+#     plt.savefig(output_path, dpi=300)
+#     plt.close()
+
 def plot_training_metrics(metrics, output_path):
-    plt.figure(figsize=(18, 4))
+    fig, axes = plt.subplots(3, 1, figsize=(6, 12))  # 3 rows, 1 column
 
-    plt.subplot(1, 3, 1)
-    plt.plot(metrics['train']['loss'], label='Train')
-    plt.plot(metrics['val']['loss'], label='Val')
-    plt.title('Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.legend()
+    # Loss plot
+    axes[0].plot(metrics['train']['loss'], label='Train', linewidth=2)
+    axes[0].plot(metrics['val']['loss'], label='Val', linewidth=2)
+    axes[0].set_title('Loss')
+    axes[0].set_xlabel('Epoch')
+    axes[0].set_ylabel('Loss')
+    axes[0].legend()
 
-    plt.subplot(1, 3, 2)
-    plt.plot(metrics['train']['acc'], label='Train')
-    plt.plot(metrics['val']['acc'], label='Val')
-    plt.title('Accuracy')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy')
-    plt.legend()
+    # Accuracy plot
+    axes[1].plot(metrics['train']['acc'], label='Train', linewidth=2)
+    axes[1].plot(metrics['val']['acc'], label='Val', linewidth=2)
+    axes[1].set_title('Accuracy')
+    axes[1].set_xlabel('Epoch')
+    axes[1].set_ylabel('Accuracy')
+    axes[1].legend()
 
-    plt.subplot(1, 3, 3)
-    plt.plot(metrics['train']['f1'], label='Train')
-    plt.plot(metrics['val']['f1'], label='Val')
-    plt.title('F1 Score')
-    plt.xlabel('Epoch')
-    plt.ylabel('F1')
-    plt.legend()
+    # F1 Score plot
+    axes[2].plot(metrics['train']['f1'], label='Train', linewidth=2)
+    axes[2].plot(metrics['val']['f1'], label='Val', linewidth=2)
+    axes[2].set_title('F1 Score')
+    axes[2].set_xlabel('Epoch')
+    axes[2].set_ylabel('F1 Score')
+    axes[2].legend()
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=300)
