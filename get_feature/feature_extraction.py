@@ -31,7 +31,6 @@ def extract_visual_features(video_path, target_fps=5, resize_dim=(96, 96)):
     skip = max(1, round(original_fps / target_fps))
     feature_vectors = []
 
-    # first frame
     ret, prev_frame = cap.read()
     if not ret:
         cap.release()
@@ -113,7 +112,7 @@ def process_video(video_path, output_dir):
         logging.error(f"Error processing {video_path}: {str(e)}", exc_info=True)
         return None
 
-def batch_process(dataset_dir, output_dir, max_workers=4):
+def batch_process(dataset_dir, output_dir, max_workers=16):
     os.makedirs(output_dir, exist_ok=True)
     files = [f for f in os.listdir(dataset_dir) if f.endswith(('.mp4', '.avi'))]
 
@@ -139,4 +138,4 @@ def batch_process(dataset_dir, output_dir, max_workers=4):
                         logging.info(f"✅ {processed_count} videos processed so far...")
                 pbar.update(1)
 
-    logging.info(f"🎉 Done! Total videos processed: {processed_count}")
+    logging.info(f"Total videos processed: {processed_count}")
