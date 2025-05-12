@@ -1,9 +1,0 @@
-/data_samples/trimmed_clips
-/original_videos
-*.pyc
-/.venv
-/data_samples/generated_samples
-data_samples/.DS_Store
-.DS_Store
-/data_samples/generated_samples_combined
-/data_samples/generated_samples2
