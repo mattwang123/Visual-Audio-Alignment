@@ -31,7 +31,6 @@ The project includes tools to:
 - Generate synthetic anomalies for training and evaluation
 
 ## Installation
-// TODO: zip files?
 
 1. Clone the repository:
 ```bash
