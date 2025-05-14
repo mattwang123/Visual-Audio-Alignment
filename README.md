@@ -93,7 +93,12 @@ pip install -r requirements.txt
       * MisalignmentType (None/time_shift/noise/mute/distort)
       * Category and FilePath
 
+#### Running the Preprocessing Notebook
 
+1. Open the `data_preprocessing.ipynb` file in `preprocessing` directory.
+2. Run the cells sequentially. This notebook performs annotation conversion and synthetic misalignment generation.
+
+All outputs will be saved to their respective folders as configured in the notebook.
 
 ### Feature Extraction
 
