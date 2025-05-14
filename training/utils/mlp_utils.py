@@ -7,7 +7,7 @@ import os
 import json
 import matplotlib.pyplot as plt
 
-# === Hyperparameter Macros ===
+# Hyperparameters
 HIDDEN_DIMS = [512, 128, 64]
 DROPOUT = 0.4
 LR = 8e-7
@@ -44,21 +44,18 @@ class SyncDetectorMLP(nn.Module):
         layers = []
         prev_dim = input_dim
 
-        # Input projection
         layers.append(nn.Linear(prev_dim, hidden_dims[0]))
         layers.append(nn.BatchNorm1d(hidden_dims[0]))
         layers.append(Swish())
         layers.append(nn.Dropout(dropout))
         prev_dim = hidden_dims[0]
 
-        # Residual blocks for intermediate layers
         for h_dim in hidden_dims[1:]:
             layers.append(nn.Linear(prev_dim, h_dim))
             layers.append(ResidualBlock(h_dim, dropout))
             prev_dim = h_dim
 
-        # Final layer
-        layers.append(nn.Linear(prev_dim, 1))  # Outputs logits for BCEWithLogitsLoss
+        layers.append(nn.Linear(prev_dim, 1))  # For BCEWithLogitsLoss
 
         self.net = nn.Sequential(*layers)
 
@@ -139,36 +136,6 @@ def save_model_and_metrics(model, optimizer, metrics, config, output_dir, timest
         f.write(summary)
     print(f"\nAll training artifacts saved to: {output_dir}")
 
-# def plot_training_metrics(metrics, output_path):
-#     plt.figure(figsize=(18, 4))
-
-#     plt.subplot(1, 3, 1)
-#     plt.plot(metrics['train']['loss'], label='Train')
-#     plt.plot(metrics['val']['loss'], label='Val')
-#     plt.title('Loss')
-#     plt.xlabel('Epoch')
-#     plt.ylabel('Loss')
-#     plt.legend()
-
-#     plt.subplot(1, 3, 2)
-#     plt.plot(metrics['train']['acc'], label='Train')
-#     plt.plot(metrics['val']['acc'], label='Val')
-#     plt.title('Accuracy')
-#     plt.xlabel('Epoch')
-#     plt.ylabel('Accuracy')
-#     plt.legend()
-
-#     plt.subplot(1, 3, 3)
-#     plt.plot(metrics['train']['f1'], label='Train')
-#     plt.plot(metrics['val']['f1'], label='Val')
-#     plt.title('F1 Score')
-#     plt.xlabel('Epoch')
-#     plt.ylabel('F1')
-#     plt.legend()
-
-#     plt.tight_layout()
-#     plt.savefig(output_path, dpi=300)
-#     plt.close()
 
 def plot_training_metrics(metrics, output_path):
     fig, axes = plt.subplots(3, 2, figsize=(10, 12))

@@ -18,8 +18,8 @@ def load_combined_npz_features(npz_dir):
                         'label': int(arr['label'])
                     }
             except Exception as e:
-                print(f"❌ Failed to load {fname}: {e}")
-    print(f"✅ Loaded {len(features)} combined feature files.")
+                print(f"Failed to load {fname}: {e}")
+    print(f"Loaded {len(features)} combined feature files.")
     return features
 
 def unified_split(npz_dir, test_size=0.3, seed=42):
@@ -68,7 +68,6 @@ class PreprocessedAVDataset(Dataset):
             except Exception as e:
                 print(f"Skipping {path}: {e}")
 
-        # Efficient conversion
         self.data = torch.tensor(np.array(self.data), dtype=torch.float32)
         self.labels = torch.tensor(np.array(self.labels), dtype=torch.float32)
 

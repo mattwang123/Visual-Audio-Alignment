@@ -33,10 +33,10 @@ def compute_all_alignment_scores(features_dict):
             scores.append(score)
             filenames.append(fname)
         except Exception as e:
-            print(f"❌ Error computing alignment for {fname}: {e}")
+            print(f"Error computing alignment for {fname}: {e}")
     if not scores:
         raise ValueError("No valid pairs found for alignment computation")
-    print(f"✅ Computed {len(scores)} alignment scores")
+    print(f"Computed {len(scores)} alignment scores")
     return np.array(scores), filenames
 
 
@@ -47,7 +47,7 @@ def extract_labels(features_dict):
         if label in [0, 1]:
             labels.append(label)
         else:
-            print(f"⚠️ Skipped invalid label in {fname}")
+            print(f"Skipped invalid label in {fname}")
             labels.append(None)
     return np.array(labels)
 
@@ -57,39 +57,32 @@ def threshold_evaluation(train_scores, train_labels, test_scores, test_labels, c
     train_scores_clean = train_scores[valid_train]
     train_labels_clean = train_labels[valid_train]
 
-    # Automatically flip if needed
     auc_original = roc_auc_score(train_labels_clean, train_scores_clean)
     auc_flipped = roc_auc_score(train_labels_clean, -train_scores_clean)
-
+    
+    # Check flip
     if auc_flipped > auc_original:
-        print(f"🔄 Flipping scores (AUC improved from {auc_original:.3f} → {auc_flipped:.3f})")
+        print(f"Flipping scores (AUC improved from {auc_original:.3f} to {auc_flipped:.3f})")
         train_scores_clean = -train_scores_clean
         test_scores = -test_scores
         flipped = True
         auc_used = auc_flipped
     else:
-        print(f"✅ Using original scores (AUC = {auc_original:.3f})")
+        print(f"Using original scores (AUC = {auc_original:.3f})")
         flipped = False
         auc_used = auc_original
 
-    # === Output directory
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = os.path.join("thresholding_output", f"run_{timestamp}")
     os.makedirs(output_dir, exist_ok=True)
 
-    # === ROC + threshold
+    # ROC + threshold
     roc_path = os.path.join(output_dir, "roc_curve.png")
     threshold = plot_roc_curve(train_labels_clean, train_scores_clean, out_path=roc_path)
-    print(f"🎯 Selected threshold: {threshold:.3f}")
+    print(f"Selected threshold: {threshold:.3f}")
 
-    # === Evaluation
     metrics = evaluate_predictions(test_labels, test_scores, threshold=threshold)
 
-    # === Confusion Matrix
-    cm_path = os.path.join(output_dir, "confusion_matrix.png")
-    plot_confusion_matrix(metrics, out_path=cm_path)
-
-    # === Save metrics & config
     def to_serializable(d):
         return {k: (v.item() if isinstance(v, (np.generic, np.ndarray)) else v) for k, v in d.items()}
 
@@ -113,5 +106,5 @@ def threshold_evaluation(train_scores, train_labels, test_scores, test_labels, c
     with open(os.path.join(output_dir, "summary.txt"), "w") as f:
         f.write(log_summary)
 
-    print(f"\n📁 All thresholding artifacts saved to: {output_dir}")
+    print(f"\nAll thresholding artifacts saved to: {output_dir}")
     return metrics

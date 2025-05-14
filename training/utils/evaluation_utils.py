@@ -50,7 +50,7 @@ def plot_confusion_matrix(metrics, out_path="confusion_matrix.png"):
     plt.tight_layout()
     plt.savefig(out_path)
     plt.close()
-    print(f"📊 Confusion matrix saved to '{out_path}'")
+    print(f"Confusion matrix saved to '{out_path}'")
 
 def plot_roc_curve(y_true, y_score, out_path="roc_curve.png"):
     fpr, tpr, thresholds = roc_curve(y_true, y_score)
@@ -69,6 +69,6 @@ def plot_roc_curve(y_true, y_score, out_path="roc_curve.png"):
     plt.grid(True)
     plt.savefig(out_path)
     plt.close()
-    print(f"📊 ROC curve saved to '{out_path}'")
+    print(f"ROC curve saved to '{out_path}'")
 
     return best_thresh
