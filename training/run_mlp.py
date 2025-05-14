@@ -10,7 +10,7 @@ from utils.mlp_utils import (
 from utils.dataloader_utils import unified_split, PreprocessedAVDataset
 
 # === Path to .npz files ===
-npz_dir = r"D:\lenovo\mia_final_project\preprocessed_output"
+npz_dir = r"D:\lenovo\mia_final_project\data"
 train_files, val_files = unified_split(npz_dir, test_size=0.3, seed=42)
 
 # === Load datasets ===

@@ -1,4 +1,0 @@
-Training Summary - 20250511_003659
-Best Validation F1: 0.7501
-Final Training F1: 0.7651
-Training Duration: 80 epochs

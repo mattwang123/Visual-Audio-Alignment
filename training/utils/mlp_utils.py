@@ -2,14 +2,14 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-from sklearn.metrics import f1_score, accuracy_score
+from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score
 import os
 import json
 import matplotlib.pyplot as plt
 
 # === Hyperparameter Macros ===
 HIDDEN_DIMS = [512, 128, 64]
-DROPOUT = 0.3
+DROPOUT = 0.4
 LR = 8e-7
 WEIGHT_DECAY = 0
 NUM_EPOCHS = 100
@@ -66,11 +66,10 @@ class SyncDetectorMLP(nn.Module):
         return self.net(x).squeeze(1)
 
 def train_model(model, dataloaders, criterion, optimizer, device, num_epochs=NUM_EPOCHS):
-    metrics = {'train': {'loss': [], 'acc': [], 'f1': []},
-               'val': {'loss': [], 'acc': [], 'f1': []}}
-    best_f1 = 0.0
-    best_preds = []
-    best_labels = []
+    metrics = {
+        'train': {'loss': [], 'acc': [], 'f1': [], 'precision': [], 'recall': []},
+        'val': {'loss': [], 'acc': [], 'f1': [], 'precision': [], 'recall': []}
+    }
 
     for epoch in range(num_epochs):
         print(f'Epoch {epoch+1}/{num_epochs}\n{"-" * 10}')
@@ -101,15 +100,15 @@ def train_model(model, dataloaders, criterion, optimizer, device, num_epochs=NUM
             epoch_loss = running_loss / len(dataloaders[phase].dataset)
             epoch_acc = accuracy_score(all_labels, all_preds)
             epoch_f1 = f1_score(all_labels, all_preds)
+            epoch_precision = precision_score(all_labels, all_preds)
+            epoch_recall = recall_score(all_labels, all_preds)
 
             metrics[phase]['loss'].append(epoch_loss)
             metrics[phase]['acc'].append(epoch_acc)
             metrics[phase]['f1'].append(epoch_f1)
-            print(f"{phase.capitalize()} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f} F1: {epoch_f1:.4f}")
-
-            if phase == 'val' and epoch_f1 > best_f1:
-                best_f1 = epoch_f1
-                torch.save(model.state_dict(), 'best_model.pth')
+            metrics[phase]['precision'].append(epoch_precision)
+            metrics[phase]['recall'].append(epoch_recall)
+            print(f"{phase.capitalize()} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f} F1: {epoch_f1:.4f} Precision: {epoch_precision:.4f} Recall: {epoch_recall:.4f}")
 
     return metrics, model
 
@@ -172,32 +171,25 @@ def save_model_and_metrics(model, optimizer, metrics, config, output_dir, timest
 #     plt.close()
 
 def plot_training_metrics(metrics, output_path):
-    fig, axes = plt.subplots(3, 1, figsize=(6, 12))  # 3 rows, 1 column
+    fig, axes = plt.subplots(3, 2, figsize=(10, 12))
+    axes = axes.flatten()
 
-    # Loss plot
-    axes[0].plot(metrics['train']['loss'], label='Train', linewidth=2)
-    axes[0].plot(metrics['val']['loss'], label='Val', linewidth=2)
-    axes[0].set_title('Loss')
-    axes[0].set_xlabel('Epoch')
-    axes[0].set_ylabel('Loss')
-    axes[0].legend()
+    metric_names = ['loss', 'acc', 'f1', 'precision', 'recall']
+    titles = ['Loss', 'Accuracy', 'F1 Score', 'Precision', 'Recall']
+    ylabels = ['Loss', 'Accuracy', 'F1 Score', 'Precision', 'Recall']
 
-    # Accuracy plot
-    axes[1].plot(metrics['train']['acc'], label='Train', linewidth=2)
-    axes[1].plot(metrics['val']['acc'], label='Val', linewidth=2)
-    axes[1].set_title('Accuracy')
-    axes[1].set_xlabel('Epoch')
-    axes[1].set_ylabel('Accuracy')
-    axes[1].legend()
+    for i, metric in enumerate(metric_names):
+        axes[i].plot(metrics['train'][metric], label='Train', linewidth=2)
+        axes[i].plot(metrics['val'][metric], label='Val', linewidth=2)
+        axes[i].set_title(titles[i])
+        axes[i].set_xlabel('Epoch')
+        axes[i].set_ylabel(ylabels[i])
+        axes[i].legend()
+        axes[i].grid(True)
 
-    # F1 Score plot
-    axes[2].plot(metrics['train']['f1'], label='Train', linewidth=2)
-    axes[2].plot(metrics['val']['f1'], label='Val', linewidth=2)
-    axes[2].set_title('F1 Score')
-    axes[2].set_xlabel('Epoch')
-    axes[2].set_ylabel('F1 Score')
-    axes[2].legend()
+    if len(metric_names) < len(axes):
+        axes[-1].axis('off')
 
     plt.tight_layout()
-    plt.savefig(output_path, dpi=300)
+    plt.savefig(output_path, dpi=500)
     plt.close()

@@ -1,0 +1,8 @@
+Thresholding Summary - 20250511_230117
+AUC Used: 0.571
+Flipped: True
+Selected Threshold: -0.513
+Accuracy: 0.6225
+Precision: 0.6875
+Recall: 0.7704
+F1 Score: 0.7266
